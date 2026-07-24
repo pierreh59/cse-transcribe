@@ -1,5 +1,7 @@
 # cse-transcribe
 
+🇫🇷 Français | 🇬🇧 [English](README.en.md)
+
 Transcription et diarisation (reconnaissance des voix) locale, gratuite et privée, pour fichiers audio/vidéo longs (réunions, etc.).
 
 Basé sur :
@@ -33,6 +35,7 @@ python -m cse_transcribe.cli --audio "chemin/vers/fichier.mp4" --out-dir "chemin
 
 Options utiles :
 - `--model large-v3` : modèle Whisper (ou chemin local vers un modèle déjà téléchargé, ex. par l'app Buzz)
+- `--language auto|fr|en|...` : langue de l'audio. `auto` (défaut) laisse Whisper la détecter sur les premières secondes ; forcer une langue connue est plus rapide et plus fiable (utile pour un clip court ou un accent marqué)
 - `--initial-prompt-file prompt.txt` : oriente la reconnaissance sur du vocabulaire/noms propres spécifiques à votre enregistrement (à fournir vous-même)
 - `--device auto|cuda|cpu` : matériel à utiliser (auto = essaie le GPU, bascule sur CPU si indisponible)
 - `--skip-diarization` : transcription seule, sans reconnaissance des locuteurs (pas besoin de token Hugging Face dans ce cas)
