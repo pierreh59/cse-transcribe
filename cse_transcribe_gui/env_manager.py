@@ -33,7 +33,20 @@ def venv_python() -> Path:
 
 
 def repo_root() -> Path:
-    # cse_transcribe_gui/ et cse_transcribe/ sont cote a cote a la racine du depot.
+    """
+    Repertoire contenant le package cse_transcribe (a mettre sur PYTHONPATH
+    pour le sous-processus). En mode source, c'est la racine du depot
+    (cse_transcribe_gui/ et cse_transcribe/ sont cote a cote). Une fois
+    empaquete avec PyInstaller (mode --onedir), le dossier cse_transcribe/
+    est copie soit dans _internal/ (versions recentes), soit a cote de
+    l'executable (versions plus anciennes) : on detecte lequel des deux.
+    """
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        internal_candidate = exe_dir / "_internal"
+        if (internal_candidate / "cse_transcribe").is_dir():
+            return internal_candidate
+        return exe_dir
     return Path(__file__).resolve().parent.parent
 
 
