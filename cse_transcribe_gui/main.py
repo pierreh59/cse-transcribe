@@ -15,7 +15,7 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSettings, QProcess
+from PySide6.QtCore import Qt, QSettings, QProcess, QTimer, QElapsedTimer
 from PySide6.QtGui import QFont, QDesktopServices
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
@@ -40,25 +40,59 @@ def _to_seconds(h, m, s):
 
 
 class BootstrapDialog(QDialog):
-    """Configuration initiale : cree le venv et installe les dependances."""
+    """
+    Configuration initiale : cree le venv et installe les dependances.
+
+    Donne trois reperes distincts a l'utilisateur, plutot qu'une seule
+    barre indeterminee : (1) l'etape en cours sur le nombre total d'etapes,
+    (2) une phrase qui interprete le journal en direct (telechargement /
+    installation / verification...), (3) un chronometre. La barre de
+    progression devient chiffree des qu'un pourcentage est detecte dans
+    la sortie de pip (telechargement), sinon elle reste animee.
+    """
+
+    STATUS_PATTERNS = [
+        (re.compile(r"creating virtual environment|python -m venv", re.I), "Création de l'environnement Python..."),
+        (re.compile(r"^collecting ", re.I | re.M), "Recherche des paquets nécessaires..."),
+        (re.compile(r"^downloading ", re.I | re.M), "Téléchargement en cours..."),
+        (re.compile(r"installing collected packages", re.I), "Installation des fichiers..."),
+        (re.compile(r"successfully installed", re.I), "Étape terminée."),
+    ]
+    PERCENT_RE = re.compile(r"(\d{1,3})%")
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Configuration initiale — cse-transcribe")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(600)
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        self.label = QLabel(
-            "Premier lancement : installation des composants necessaires "
-            "(transcription et reconnaissance des voix). Cela peut prendre "
-            "plusieurs minutes selon votre connexion."
+
+        intro = QLabel(
+            "Premier lancement : installation des composants nécessaires "
+            "(transcription et reconnaissance des voix)."
         )
-        self.label.setWordWrap(True)
-        layout.addWidget(self.label)
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        self.step_label = QLabel("Préparation...")
+        step_font = QFont()
+        step_font.setBold(True)
+        step_font.setPointSize(11)
+        self.step_label.setFont(step_font)
+        layout.addWidget(self.step_label)
+
+        status_row = QHBoxLayout()
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #888;")
+        self.elapsed_label = QLabel("")
+        self.elapsed_label.setStyleSheet("color: #aaa;")
+        status_row.addWidget(self.status_label, stretch=1)
+        status_row.addWidget(self.elapsed_label)
+        layout.addLayout(status_row)
 
         self.progress = QProgressBar()
-        self.progress.setRange(0, 0)  # indetermine
+        self.progress.setRange(0, 0)  # indetermine par defaut
         layout.addWidget(self.progress)
 
         self.log = QPlainTextEdit()
@@ -76,21 +110,33 @@ class BootstrapDialog(QDialog):
         self._process = None
         self._failed = False
 
+        self._elapsed_timer = QElapsedTimer()
+        self._ui_timer = QTimer(self)
+        self._ui_timer.setInterval(1000)
+        self._ui_timer.timeout.connect(self._update_elapsed)
+
     def start(self, system_python_cmd: str):
         self._steps = env_manager.bootstrap_steps(system_python_cmd)
         self._run_next_step()
 
     def _run_next_step(self):
         if self._step_index >= len(self._steps):
-            self.label.setText("Configuration terminee.")
+            self._ui_timer.stop()
+            self.step_label.setText("Configuration terminée.")
+            self.status_label.setText("")
             self.progress.setRange(0, 1)
             self.progress.setValue(1)
             self.close_btn.setEnabled(True)
             return
 
         desc, cmd = self._steps[self._step_index]
-        self.label.setText(desc)
+        self.step_label.setText(f"Étape {self._step_index + 1} sur {len(self._steps)} : {desc}")
+        self.status_label.setText("Démarrage...")
+        self.progress.setRange(0, 0)
         self.log.appendPlainText(f"\n$ {' '.join(cmd)}\n")
+
+        self._elapsed_timer.start()
+        self._ui_timer.start()
 
         self._process = QProcess(self)
         self._process.setProcessChannelMode(QProcess.MergedChannels)
@@ -98,14 +144,36 @@ class BootstrapDialog(QDialog):
         self._process.finished.connect(self._on_step_finished)
         self._process.start(cmd[0], cmd[1:])
 
+    def _update_elapsed(self):
+        secs = self._elapsed_timer.elapsed() // 1000
+        m, s = divmod(int(secs), 60)
+        self.elapsed_label.setText(f"Écoulé : {m} min {s:02d} s" if m else f"Écoulé : {s} s")
+
     def _on_output(self):
         data = bytes(self._process.readAllStandardOutput()).decode("utf-8", errors="replace")
         self.log.appendPlainText(data.rstrip())
+        self._interpret_output(data)
+
+    def _interpret_output(self, data: str):
+        percents = self.PERCENT_RE.findall(data)
+        if percents:
+            pct = int(percents[-1])
+            if self.progress.maximum() == 0:
+                self.progress.setRange(0, 100)
+            self.progress.setValue(pct)
+            self.status_label.setText(f"Téléchargement en cours... {pct}%")
+            return
+        for pattern, message in self.STATUS_PATTERNS:
+            if pattern.search(data):
+                self.status_label.setText(message)
+                return
 
     def _on_step_finished(self, exit_code, _status):
+        self._ui_timer.stop()
         if exit_code != 0:
             self._failed = True
-            self.label.setText("Echec de la configuration. Consultez le journal ci-dessous.")
+            self.step_label.setText("Échec de la configuration.")
+            self.status_label.setText("Consultez le journal ci-dessous.")
             self.progress.setRange(0, 1)
             self.progress.setValue(0)
             self.close_btn.setEnabled(True)
