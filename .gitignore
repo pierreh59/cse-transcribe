@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# sorties et donnees (potentiellement confidentielles) : jamais versionnees
+/output/
+/out/
+*.mp3
+*.mp4
+*.wav
+*.srt
+*.vtt
+checkpoints/
+logs/
+speakers_summary.json
+transcript_diarized.json
