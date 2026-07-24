@@ -3,6 +3,11 @@ __pycache__/
 .venv/
 venv/
 
+# artefacts de build (PyInstaller / Inno Setup) : regeneres par packaging/*
+/build/
+/dist/
+/dist_installer/
+
 # sorties et donnees (potentiellement confidentielles) : jamais versionnees
 /output/
 /out/
