@@ -92,9 +92,10 @@ def is_ready() -> bool:
 REQUIREMENTS = [
     "faster-whisper>=1.0.0",
     "pyannote.audio>=4.0.0",
+    "torchcodec",
 ]
 TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
-TORCH_PACKAGES = ["torch", "torchaudio", "torchcodec"]
+TORCH_PACKAGES = ["torch", "torchaudio"]
 
 
 def bootstrap_steps(system_python_cmd: str):
@@ -110,12 +111,23 @@ def bootstrap_steps(system_python_cmd: str):
         "Creation de l'environnement Python dedie...",
         system_python_cmd.split() + ["-m", "venv", str(venv_dir())],
     ))
+    pip_common = ["--progress-bar", "raw", "--disable-pip-version-check"]
+    # torch/torchaudio (CUDA) sont installes seuls, avec --index-url exclusif
+    # (pas de --extra-index-url ici) : si on ajoute PyPI comme source
+    # supplementaire, pip choisit la version publique la plus recente tous
+    # index confondus, qui est souvent une release PyPI plus recente mais
+    # CPU-only, plutot que le build +cu128 le plus recent de l'index CUDA.
+    # torch (CUDA) doit aussi etre installe AVANT faster-whisper/pyannote.audio
+    # (etape suivante) : ces derniers dependent de torch sans epingler de
+    # build particulier, donc si torch est deja present, pip considere la
+    # dependance satisfaite et ne le remplace pas.
     steps.append((
-        "Installation de faster-whisper et pyannote.audio...",
-        [py, "-m", "pip", "install", "--quiet"] + REQUIREMENTS,
+        "Installation de torch (CUDA) — peut prendre plusieurs minutes",
+        [py, "-m", "pip", "install"] + pip_common
+        + ["--index-url", TORCH_INDEX] + TORCH_PACKAGES,
     ))
     steps.append((
-        "Installation de torch (CUDA) — peut prendre plusieurs minutes...",
-        [py, "-m", "pip", "install", "--quiet", "--index-url", TORCH_INDEX] + TORCH_PACKAGES,
+        "Installation de faster-whisper, pyannote.audio et torchcodec",
+        [py, "-m", "pip", "install"] + pip_common + REQUIREMENTS,
     ))
     return steps
