@@ -9,8 +9,10 @@ dedie (voir env_manager.py) et lance le traitement comme un sous-processus
 transcription plante, seul le sous-processus meurt : l'interface reste
 utilisable.
 """
+import json
 import os
 import re
+import subprocess
 import sys
 import webbrowser
 from pathlib import Path
@@ -21,7 +23,8 @@ from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QGroupBox, QLineEdit, QPushButton, QComboBox, QCheckBox, QPlainTextEdit,
-    QProgressBar, QFileDialog, QLabel, QMessageBox, QDialog,
+    QProgressBar, QFileDialog, QLabel, QMessageBox, QDialog, QScrollArea,
+    QInputDialog,
 )
 
 from . import env_manager
@@ -183,6 +186,157 @@ class BootstrapDialog(QDialog):
 
     def failed(self) -> bool:
         return self._failed
+
+
+EXPORT_FORMATS = {
+    "Word (.docx)": ("docx", "Documents Word (*.docx)"),
+    "PDF (.pdf)": ("pdf", "Documents PDF (*.pdf)"),
+    "Texte (.txt)": ("txt", "Fichiers texte (*.txt)"),
+}
+
+
+class SpeakerNamingDialog(QDialog):
+    """
+    Affichee juste apres une diarisation reussie : un locuteur detecte
+    (SPEAKER_00, ...) n'est qu'un identifiant technique, pas un nom. Cet
+    ecran montre, pour chacun, quelques phrases prononcees (pour aider a le
+    reconnaitre) et trois champs a completer (Nom / Prenom / Fonction).
+    A la validation, le transcript est reecrit avec ces identites et exporte
+    au format choisi (Word, PDF ou texte).
+    """
+
+    def __init__(self, out_dir: str, parent=None):
+        super().__init__(parent)
+        self.out_dir = out_dir
+        self.exported_path = None
+        self.setWindowTitle("Qui a dit quoi ? — Identification des locuteurs")
+        self.resize(760, 620)
+
+        layout = QVBoxLayout(self)
+        intro = QLabel(
+            "La reconnaissance des voix a détecté plusieurs locuteurs distincts. "
+            "Indiquez, pour chacun, le nom, prénom et la fonction de la personne "
+            "(laissez vide si vous ne savez pas)."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        form_layout = QVBoxLayout(container)
+
+        self.row_fields = {}
+        with open(os.path.join(out_dir, "speakers_summary.json"), encoding="utf-8") as f:
+            summary = json.load(f)
+
+        for s in summary:
+            if s["speaker"] == "INCONNU":
+                continue
+            box = QGroupBox(f"{s['speaker']}  —  {s['nombre_tours']} tours de parole, {s['duree_totale']}")
+            box_layout = QVBoxLayout(box)
+            for ex in s.get("exemples", [])[:3]:
+                ex_label = QLabel(f"[{ex['timestamp']}] « {ex['text']} »")
+                ex_label.setWordWrap(True)
+                ex_label.setStyleSheet("color: #888; font-style: italic;")
+                box_layout.addWidget(ex_label)
+
+            fields_row = QHBoxLayout()
+            nom_edit = QLineEdit()
+            nom_edit.setPlaceholderText("Nom")
+            prenom_edit = QLineEdit()
+            prenom_edit.setPlaceholderText("Prénom")
+            fonction_edit = QLineEdit()
+            fonction_edit.setPlaceholderText("Fonction")
+            fields_row.addWidget(nom_edit)
+            fields_row.addWidget(prenom_edit)
+            fields_row.addWidget(fonction_edit)
+            box_layout.addLayout(fields_row)
+
+            form_layout.addWidget(box)
+            self.row_fields[s["speaker"]] = (nom_edit, prenom_edit, fonction_edit)
+
+        form_layout.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll, stretch=1)
+
+        btn_row = QHBoxLayout()
+        skip_btn = QPushButton("Ignorer")
+        skip_btn.clicked.connect(self.reject)
+        self.validate_btn = QPushButton("Valider et exporter...")
+        self.validate_btn.clicked.connect(self._on_validate)
+        btn_row.addWidget(skip_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(self.validate_btn)
+        layout.addLayout(btn_row)
+
+    def _on_validate(self):
+        mapping = {}
+        for speaker_id, (nom_e, prenom_e, fonction_e) in self.row_fields.items():
+            nom = nom_e.text().strip()
+            prenom = prenom_e.text().strip()
+            fonction = fonction_e.text().strip()
+            if nom or prenom or fonction:
+                mapping[speaker_id] = {"nom": nom, "prenom": prenom, "fonction": fonction}
+
+        fmt_choice, ok = QInputDialog.getItem(
+            self, "Format d'export", "Format du document de sortie :",
+            list(EXPORT_FORMATS.keys()), 0, False
+        )
+        if not ok:
+            return
+        fmt_key, filter_str = EXPORT_FORMATS[fmt_choice]
+
+        default_name = os.path.join(self.out_dir, f"transcription_identifiee.{fmt_key}")
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Enregistrer sous...", default_name, filter_str
+        )
+        if not out_path:
+            return
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            success, message = self._export(mapping, fmt_key, out_path)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if success:
+            self.exported_path = out_path
+            QMessageBox.information(self, "Export réussi", f"Fichier généré :\n{out_path}")
+            self.accept()
+        else:
+            QMessageBox.critical(self, "Échec de l'export", message)
+
+    def _export(self, mapping: dict, fmt_key: str, out_path: str):
+        if not env_manager.export_deps_ready():
+            install = subprocess.run(
+                env_manager.export_bootstrap_step(), capture_output=True, text=True
+            )
+            if install.returncode != 0:
+                return False, "Installation des dépendances d'export impossible :\n" + install.stderr
+
+        mapping_path = os.path.join(self.out_dir, "_mapping_temp.json")
+        try:
+            with open(mapping_path, "w", encoding="utf-8") as f:
+                json.dump(mapping, f, ensure_ascii=False)
+
+            args = [
+                str(env_manager.venv_python()), "-m", "cse_transcribe.export_cli",
+                "--transcript", os.path.join(self.out_dir, "transcript_diarized.json"),
+                "--mapping", mapping_path,
+                "--format", fmt_key,
+                "--output", out_path,
+            ]
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(env_manager.repo_root())
+            result = subprocess.run(args, env=env, capture_output=True, text=True)
+        finally:
+            if os.path.exists(mapping_path):
+                os.remove(mapping_path)
+
+        if result.returncode != 0:
+            return False, result.stderr or "Erreur inconnue."
+        return True, ""
 
 
 class MainWindow(QMainWindow):
@@ -395,8 +549,18 @@ class MainWindow(QMainWindow):
             self.progress.setValue(100)
             self.open_folder_btn.setEnabled(True)
             self.log.appendPlainText("\n=== Traitement termine avec succes ===")
+            self._maybe_offer_speaker_naming()
         else:
             self.log.appendPlainText(f"\n=== Le traitement s'est arrete (code {exit_code}) ===")
+
+    def _maybe_offer_speaker_naming(self):
+        if self.skip_diarization_check.isChecked() or not self.last_out_dir:
+            return
+        summary_path = os.path.join(self.last_out_dir, "speakers_summary.json")
+        if not os.path.isfile(summary_path):
+            return
+        dialog = SpeakerNamingDialog(self.last_out_dir, self)
+        dialog.exec()
 
 
 def main():

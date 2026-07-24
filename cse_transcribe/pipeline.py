@@ -131,6 +131,7 @@ def diarize_audio(audio_path, out_dir, hf_token, device_pref="auto"):
     logger.info("Chargement du modele de reconnaissance des locuteurs (pyannote)...")
     from pyannote.audio import Pipeline
     import torch
+    from faster_whisper.audio import decode_audio
 
     pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=hf_token)
     if device_pref in ("auto", "cuda") and torch.cuda.is_available():
@@ -140,7 +141,14 @@ def diarize_audio(audio_path, out_dir, hf_token, device_pref="auto"):
         logger.info("Analyse des voix lancee sur processeur (CPU) : cette etape peut prendre plusieurs minutes.")
 
     logger.info("Analyse des voix en cours (identification de qui parle a chaque instant)...")
-    output = pipeline(audio_path)
+    # On decode l'audio nous-memes (via PyAV, deja utilise par faster-whisper)
+    # plutot que de laisser pyannote lire le fichier via torchcodec : cette
+    # derniere bibliotheque necessite un build FFmpeg "full-shared" specifique
+    # rarement present sur les postes Windows, ce qui rend l'installation
+    # fragile. Le fournir en waveform pre-decodee evite cette dependance.
+    sample_rate = 16000
+    waveform = torch.from_numpy(decode_audio(audio_path, sampling_rate=sample_rate)).unsqueeze(0)
+    output = pipeline({"waveform": waveform, "sample_rate": sample_rate})
     # pyannote.audio >= 4.0 renvoie un objet DiarizeOutput ; on utilise la version
     # "exclusive" (sans chevauchement), adaptee a la fusion avec la transcription.
     diarization = getattr(output, "exclusive_speaker_diarization", None)

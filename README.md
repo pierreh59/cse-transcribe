@@ -20,7 +20,8 @@ Tout tourne en local sur votre machine — rien n'est envoyé à un service tier
    - [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
    - Créer un token de lecture sur [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
    - Définir la variable d'environnement `HF_TOKEN` (ou la passer via `--hf-token`)
-4. FFmpeg "full-shared" (DLLs partagées, pas juste l'exécutable) doit être sur le `PATH` pour le décodage audio (`torchcodec`). Sous Windows : télécharger un build `-shared` depuis [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) ou [GyanD/codexffmpeg](https://github.com/GyanD/codexffmpeg/releases) et ajouter son dossier `bin/` au `PATH`.
+
+Aucune installation externe de FFmpeg n'est necessaire : le decodage audio passe par PyAV (deja embarque avec ses propres bibliotheques), aussi bien pour la transcription que pour la diarisation.
 
 ## Utilisation
 
@@ -47,6 +48,8 @@ python -m cse_transcribe_gui
 ```
 
 Au premier lancement, l'application crée automatiquement un environnement Python dédié (`%LOCALAPPDATA%\cse-transcribe\venv`) et y installe les dépendances lourdes (torch, faster-whisper, pyannote.audio), avec une barre de progression. L'interface elle-même reste légère et lance le traitement dans un sous-processus séparé : un plantage du moteur de transcription n'affecte jamais la fenêtre.
+
+Après une diarisation réussie, un écran « Qui a dit quoi ? » liste chaque locuteur détecté (`SPEAKER_00`, ...) avec quelques phrases prononcées, et propose trois champs à compléter (Nom / Prénom / Fonction). Une fois validé, le transcript est réécrit avec ces identités et exporté au format choisi (Word, PDF ou texte) — les dépendances d'export (`python-docx`, `fpdf2`), légères, s'installent automatiquement à la première utilisation.
 
 **Construire l'installateur Windows (.exe) :**
 ```bash
@@ -78,3 +81,4 @@ Le programme d'installation est généré dans `dist_installer\cse-transcribe-se
 
 - La diarisation est plus fragile sur un microphone de salle partagé par plusieurs personnes que sur des micros individuels : une même personne peut occasionnellement se retrouver scindée en plusieurs locuteurs détectés, ou un mot isolé très court peut être attribué à un locuteur inconnu. Le `speakers_summary.json` produit sert de base pour identifier et fusionner manuellement ces cas.
 - pyannote.audio >= 4.0 dépend d'un modèle supplémentaire (`pyannote/speaker-diarization-community-1`) découvert au fil de l'utilisation ; le code gère cette dépendance automatiquement mais nécessite l'acceptation de ses conditions d'usage (voir Installation ci-dessus).
+- pyannote.audio affiche un avertissement au sujet de `torchcodec` au chargement : sans objet, le code fournit l'audio déjà décodé (via PyAV) et n'utilise jamais `torchcodec`.

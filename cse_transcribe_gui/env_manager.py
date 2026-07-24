@@ -89,6 +89,33 @@ def is_ready() -> bool:
     return check.returncode == 0
 
 
+EXPORT_REQUIREMENTS = ["python-docx>=1.1.0", "fpdf2>=2.7.0"]
+
+
+def export_deps_ready() -> bool:
+    """Les dependances d'export (Word/PDF), legeres, sont-elles deja installees ?"""
+    py = venv_python()
+    if not py.exists():
+        return False
+    check = subprocess.run(
+        [str(py), "-c", "import docx, fpdf"],
+        capture_output=True, text=True,
+    )
+    return check.returncode == 0
+
+
+def export_bootstrap_step():
+    """
+    Etape d'installation des dependances d'export : separee du bootstrap
+    principal (torch/faster-whisper/pyannote) car legere (pas de CUDA a
+    telecharger) et installee a la demande, seulement quand l'utilisateur
+    utilise effectivement l'export Word/PDF.
+    """
+    py = str(venv_python())
+    return [py, "-m", "pip", "install", "--progress-bar", "raw",
+            "--disable-pip-version-check"] + EXPORT_REQUIREMENTS
+
+
 REQUIREMENTS = [
     "faster-whisper>=1.0.0",
     "pyannote.audio>=4.0.0",
