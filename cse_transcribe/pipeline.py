@@ -33,6 +33,26 @@ def _checkpoint_path(out_dir, name):
     return os.path.join(out_dir, "checkpoints", name)
 
 
+def _ensure_cuda_dll_path():
+    """
+    Sur Windows, ctranslate2 (utilise par faster-whisper) ne bundle pas ses
+    propres DLLs CUDA (cuBLAS/cuDNN) et ne les trouve pas automatiquement sur
+    le PATH. torch les embarque deja dans son propre dossier lib/ (il en a
+    besoin pour son propre usage) : on ajoute ce dossier au chemin de
+    recherche des DLL du processus, ce qui evite un telechargement redondant
+    des paquets nvidia-cublas-cu12/nvidia-cudnn-cu12.
+    """
+    if os.name != "nt":
+        return
+    try:
+        import torch
+        torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
+        if os.path.isdir(torch_lib):
+            os.add_dll_directory(torch_lib)
+    except Exception:
+        logger.warning("Impossible de localiser les bibliotheques CUDA de torch pour le GPU.")
+
+
 def transcribe_audio(audio_path, out_dir, model_dir_or_name, language, initial_prompt, device_pref="auto"):
     """Etape 1 : transcription. Reprend depuis un checkpoint si deja fait."""
     os.makedirs(os.path.join(out_dir, "checkpoints"), exist_ok=True)
@@ -43,6 +63,7 @@ def transcribe_audio(audio_path, out_dir, model_dir_or_name, language, initial_p
             return json.load(f)
 
     logger.info("Chargement du modele de reconnaissance vocale (Whisper Large-v3)...")
+    _ensure_cuda_dll_path()
     from faster_whisper import WhisperModel
 
     model = None
