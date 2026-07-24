@@ -20,7 +20,9 @@ def build_parser():
     p.add_argument("--model", default="large-v3",
                     help="Nom du modele Whisper (ex: large-v3, medium) ou chemin local vers un modele "
                         "faster-whisper deja telecharge. Defaut: large-v3.")
-    p.add_argument("--language", default="fr", help="Code langue (defaut: fr).")
+    p.add_argument("--language", default="auto",
+                    help="Code langue (ex: fr, en, es...) ou 'auto' (defaut) pour une detection "
+                        "automatique par Whisper sur les premieres secondes de l'audio.")
     p.add_argument("--initial-prompt", default=None,
                     help="Texte pour orienter la reconnaissance (noms propres, jargon specifique a votre "
                         "enregistrement). Aucun vocabulaire n'est fourni par defaut : chaque utilisateur "

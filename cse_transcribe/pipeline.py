@@ -82,10 +82,19 @@ def transcribe_audio(audio_path, out_dir, model_dir_or_name, language, initial_p
         model = WhisperModel(model_dir_or_name, device="cpu", compute_type="int8")
         logger.info("Modele charge sur processeur (CPU).")
 
+    # "auto" (valeur par defaut) n'est pas un code langue Whisper : None active
+    # la detection automatique (faster-whisper analyse les premieres secondes
+    # de l'audio). Forcer un code connu a l'avance reste plus rapide et plus
+    # fiable (utile pour un clip court ou un accent marque qui pourrait
+    # tromper la detection).
+    whisper_language = None if language in (None, "", "auto") else language
+    if whisper_language is None:
+        logger.info("Langue non precisee : detection automatique par Whisper.")
+
     logger.info("Debut de la transcription de l'audio. Cela peut prendre du temps selon la duree du fichier...")
     segments_gen, info = model.transcribe(
         audio_path,
-        language=language,
+        language=whisper_language,
         initial_prompt=initial_prompt,
         word_timestamps=True,
         vad_filter=True,

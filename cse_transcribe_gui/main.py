@@ -385,8 +385,9 @@ class MainWindow(QMainWindow):
         self.model_combo.setCurrentText(self.settings.value("model", "large-v3"))
         opt_form.addRow("Modele Whisper :", self.model_combo)
 
-        self.language_edit = QLineEdit(self.settings.value("language", "fr"))
-        opt_form.addRow("Langue :", self.language_edit)
+        self.language_edit = QLineEdit(self.settings.value("language", "auto"))
+        self.language_edit.setPlaceholderText("auto")
+        opt_form.addRow("Langue (auto ou code : fr, en, es...) :", self.language_edit)
 
         self.device_combo = QComboBox()
         self.device_combo.addItems(DEVICES)
@@ -498,7 +499,7 @@ class MainWindow(QMainWindow):
             "--audio", audio,
             "--out-dir", out_dir,
             "--model", self.model_combo.currentText(),
-            "--language", self.language_edit.text().strip() or "fr",
+            "--language", self.language_edit.text().strip() or "auto",
             "--device", self.device_combo.currentText(),
         ]
         if self.prompt_file_edit.text().strip():
