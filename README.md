@@ -36,6 +36,27 @@ Options utiles :
 - `--device auto|cuda|cpu` : matériel à utiliser (auto = essaie le GPU, bascule sur CPU si indisponible)
 - `--skip-diarization` : transcription seule, sans reconnaissance des locuteurs (pas besoin de token Hugging Face dans ce cas)
 
+## Application graphique (Windows)
+
+Une interface graphique (`cse_transcribe_gui/`, PySide6) est disponible pour un usage sans ligne de commande.
+
+**Depuis les sources :**
+```bash
+pip install -r requirements-gui.txt
+python -m cse_transcribe_gui
+```
+
+Au premier lancement, l'application crée automatiquement un environnement Python dédié (`%LOCALAPPDATA%\cse-transcribe\venv`) et y installe les dépendances lourdes (torch, faster-whisper, pyannote.audio), avec une barre de progression. L'interface elle-même reste légère et lance le traitement dans un sous-processus séparé : un plantage du moteur de transcription n'affecte jamais la fenêtre.
+
+**Construire l'installateur Windows (.exe) :**
+```bash
+pip install pyinstaller
+pyinstaller packaging/cse_transcribe_gui.spec --noconfirm
+# Nécessite Inno Setup 6 (https://jrsoftware.org/isinfo.php) :
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss
+```
+Le programme d'installation est généré dans `dist_installer\cse-transcribe-setup-<version>.exe` (raccourcis Menu Démarrer/Bureau, désinstalleur inclus). Torch/faster-whisper/pyannote ne sont pas embarqués dans l'installateur (il reste ainsi léger, ~35 Mo) : ils sont installés au premier lancement, comme en mode source.
+
 ## Résultats produits (dans `--out-dir`)
 
 - `transcript_diarized.json` — chaque tour de parole : début, fin, locuteur (`SPEAKER_00`, `SPEAKER_01`...), texte
@@ -51,6 +72,7 @@ Options utiles :
 - Journal détaillé horodaté conservé sur disque, séparé des messages de progression affichés à l'écran
 - Fusion mot par mot entre transcription et diarisation (plus précis qu'une fusion par segment, notamment quand plusieurs personnes partagent un même microphone de salle)
 - Absorption automatique des micro-fragments mal attribués par la diarisation (mot isolé coincé entre deux répliques de la même personne)
+- Interface graphique : le moteur de transcription tourne dans un sous-processus isolé, son plantage n'affecte jamais la fenêtre
 
 ## Limites connues
 
