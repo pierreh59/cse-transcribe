@@ -36,11 +36,15 @@ def _checkpoint_path(out_dir, name):
 def _ensure_cuda_dll_path():
     """
     Sur Windows, ctranslate2 (utilise par faster-whisper) ne bundle pas ses
-    propres DLLs CUDA (cuBLAS/cuDNN) et ne les trouve pas automatiquement sur
-    le PATH. torch les embarque deja dans son propre dossier lib/ (il en a
-    besoin pour son propre usage) : on ajoute ce dossier au chemin de
-    recherche des DLL du processus, ce qui evite un telechargement redondant
-    des paquets nvidia-cublas-cu12/nvidia-cudnn-cu12.
+    propres DLLs CUDA (cuBLAS/cuDNN) et ne les trouve pas automatiquement.
+    torch les embarque deja dans son propre dossier lib/ (il en a besoin pour
+    son propre usage). Le chargeur natif de NVIDIA utilise l'ordre de
+    recherche classique de Windows (variable PATH), pas les repertoires
+    ajoutes via os.add_dll_directory (celui-ci n'est respecte que par les
+    appels qui passent explicitement le flag LOAD_LIBRARY_SEARCH_USER_DIRS,
+    ce qui n'est pas le cas ici) : on ajoute donc le dossier au PATH, en plus
+    de l'appel a add_dll_directory par precaution. Ca evite un telechargement
+    redondant des paquets nvidia-cublas-cu12/nvidia-cudnn-cu12.
     """
     if os.name != "nt":
         return
@@ -48,6 +52,7 @@ def _ensure_cuda_dll_path():
         import torch
         torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
         if os.path.isdir(torch_lib):
+            os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
             os.add_dll_directory(torch_lib)
     except Exception:
         logger.warning("Impossible de localiser les bibliotheques CUDA de torch pour le GPU.")
