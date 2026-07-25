@@ -6,6 +6,7 @@ faster-whisper, pyannote.audio). L'application GUI elle-meme reste legere
 sous-processus, pour que le moteur de transcription ne puisse jamais faire
 planter l'interface graphique.
 """
+import json
 import os
 import sys
 import shutil
@@ -119,10 +120,28 @@ def export_bootstrap_step():
 REQUIREMENTS = [
     "faster-whisper>=1.0.0",
     "pyannote.audio>=4.0.0",
-    "torchcodec",
 ]
 TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
 TORCH_PACKAGES = ["torch", "torchaudio"]
+
+
+def has_nvidia_gpu() -> bool:
+    """
+    Detecte une carte NVIDIA fonctionnelle via nvidia-smi (installe par le
+    pilote NVIDIA, present des qu'une carte est correctement configuree).
+    Permet d'eviter de telecharger les wheels torch CUDA (plusieurs Go) sur
+    un poste qui n'a de toute facon pas de GPU compatible.
+    """
+    nvidia_smi = shutil.which("nvidia-smi")
+    if not nvidia_smi:
+        return False
+    try:
+        result = subprocess.run(
+            [nvidia_smi], capture_output=True, text=True, timeout=10
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 def bootstrap_steps(system_python_cmd: str):
@@ -148,13 +167,58 @@ def bootstrap_steps(system_python_cmd: str):
     # (etape suivante) : ces derniers dependent de torch sans epingler de
     # build particulier, donc si torch est deja present, pip considere la
     # dependance satisfaite et ne le remplace pas.
+    if has_nvidia_gpu():
+        steps.append((
+            "Installation de torch (CUDA) — peut prendre plusieurs minutes",
+            [py, "-m", "pip", "install"] + pip_common
+            + ["--index-url", TORCH_INDEX] + TORCH_PACKAGES,
+        ))
+    else:
+        # Pas de GPU NVIDIA detecte : on installe directement les wheels
+        # CPU par defaut de PyPI (bien plus legeres, pas de CUDA a
+        # telecharger inutilement).
+        steps.append((
+            "Installation de torch (CPU, aucun GPU NVIDIA detecte)",
+            [py, "-m", "pip", "install"] + pip_common + TORCH_PACKAGES,
+        ))
     steps.append((
-        "Installation de torch (CUDA) — peut prendre plusieurs minutes",
-        [py, "-m", "pip", "install"] + pip_common
-        + ["--index-url", TORCH_INDEX] + TORCH_PACKAGES,
-    ))
-    steps.append((
-        "Installation de faster-whisper, pyannote.audio et torchcodec",
+        "Installation de faster-whisper et pyannote.audio",
         [py, "-m", "pip", "install"] + pip_common + REQUIREMENTS,
     ))
     return steps
+
+
+def known_speakers_path() -> Path:
+    return app_data_dir() / "known_speakers.json"
+
+
+def load_known_speakers() -> list[dict]:
+    """
+    Liste des locuteurs deja identifies lors de sessions precedentes
+    (Nom / Prenom / Fonction), pour proposer une auto-completion dans
+    l'ecran d'identification plutot que de tout retaper a chaque reunion
+    recurrente.
+    """
+    path = known_speakers_path()
+    if not path.exists():
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def remember_speakers(entries: list[dict]) -> None:
+    """Fusionne de nouvelles identites (nom/prenom/fonction) dans l'historique connu."""
+    known = load_known_speakers()
+    seen = {(e.get("nom", ""), e.get("prenom", "")) for e in known}
+    for entry in entries:
+        key = (entry.get("nom", ""), entry.get("prenom", ""))
+        if key == ("", "") or key in seen:
+            continue
+        known.append(entry)
+        seen.add(key)
+    with open(known_speakers_path(), "w", encoding="utf-8") as f:
+        json.dump(known, f, ensure_ascii=False, indent=1)

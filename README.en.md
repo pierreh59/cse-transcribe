@@ -52,7 +52,9 @@ python -m cse_transcribe_gui
 
 On first launch, the application automatically creates a dedicated Python environment (`%LOCALAPPDATA%\cse-transcribe\venv`) and installs the heavy dependencies there (torch, faster-whisper, pyannote.audio), with a progress bar. The interface itself stays lightweight and runs the processing in a separate subprocess: a crash in the transcription engine never affects the window.
 
-After a successful diarization, a "Who said what?" screen lists each detected speaker (`SPEAKER_00`, ...) with a few spoken phrases, and offers three fields to fill in (Last name / First name / Role). Once validated, the transcript is rewritten with these identities and exported in the chosen format (Word, PDF, or text) — the lightweight export dependencies (`python-docx`, `fpdf2`) install automatically on first use.
+After a successful diarization, a "Who said what?" screen lists each detected speaker (`SPEAKER_00`, ...) with a few spoken phrases, and offers three fields to fill in (Last name / First name / Role) — with autocomplete from speakers already identified in previous sessions, handy for recurring meetings with the same people. Once validated, the transcript is rewritten with these identities and exported in the chosen format (Word, PDF, or text) — the lightweight export dependencies (`python-docx`, `fpdf2`) install automatically on first use, with the same progress bar as the main bootstrap.
+
+On first launch, the application detects the presence of an NVIDIA card (via `nvidia-smi`): without a compatible GPU, it installs the CPU torch wheels directly (much lighter) instead of needlessly downloading several GB of CUDA packages.
 
 **Building the Windows installer (.exe):**
 ```bash
@@ -78,6 +80,7 @@ The installer is generated in `dist_installer\cse-transcribe-setup-<version>.exe
 - Detailed, timestamped log kept on disk, separate from the progress messages shown on screen
 - Word-by-word merging between transcription and diarization (more precise than a segment-level merge, especially when several people share the same room microphone)
 - Automatic absorption of short fragments misattributed by diarization (an isolated word wedged between two turns from the same person)
+- Detailed diarization progress in the log (segmentation, voice embeddings...) instead of no feedback at all until the step finishes
 - Graphical interface: the transcription engine runs in an isolated subprocess, its crash never affects the window
 
 ## Known limitations

@@ -52,7 +52,9 @@ python -m cse_transcribe_gui
 
 Au premier lancement, l'application crée automatiquement un environnement Python dédié (`%LOCALAPPDATA%\cse-transcribe\venv`) et y installe les dépendances lourdes (torch, faster-whisper, pyannote.audio), avec une barre de progression. L'interface elle-même reste légère et lance le traitement dans un sous-processus séparé : un plantage du moteur de transcription n'affecte jamais la fenêtre.
 
-Après une diarisation réussie, un écran « Qui a dit quoi ? » liste chaque locuteur détecté (`SPEAKER_00`, ...) avec quelques phrases prononcées, et propose trois champs à compléter (Nom / Prénom / Fonction). Une fois validé, le transcript est réécrit avec ces identités et exporté au format choisi (Word, PDF ou texte) — les dépendances d'export (`python-docx`, `fpdf2`), légères, s'installent automatiquement à la première utilisation.
+Après une diarisation réussie, un écran « Qui a dit quoi ? » liste chaque locuteur détecté (`SPEAKER_00`, ...) avec quelques phrases prononcées, et propose trois champs à compléter (Nom / Prénom / Fonction) — avec auto-complétion à partir des locuteurs déjà identifiés lors de sessions précédentes, utile pour des réunions récurrentes avec les mêmes personnes. Une fois validé, le transcript est réécrit avec ces identités et exporté au format choisi (Word, PDF ou texte) — les dépendances d'export (`python-docx`, `fpdf2`), légères, s'installent automatiquement à la première utilisation, avec la même barre de progression que le bootstrap principal.
+
+Au premier lancement, l'application détecte la présence d'une carte NVIDIA (via `nvidia-smi`) : sans GPU compatible, elle installe directement les wheels torch CPU (bien plus légères) plutôt que de télécharger inutilement plusieurs Go de paquets CUDA.
 
 **Construire l'installateur Windows (.exe) :**
 ```bash
@@ -78,6 +80,7 @@ Le programme d'installation est généré dans `dist_installer\cse-transcribe-se
 - Journal détaillé horodaté conservé sur disque, séparé des messages de progression affichés à l'écran
 - Fusion mot par mot entre transcription et diarisation (plus précis qu'une fusion par segment, notamment quand plusieurs personnes partagent un même microphone de salle)
 - Absorption automatique des micro-fragments mal attribués par la diarisation (mot isolé coincé entre deux répliques de la même personne)
+- Progression détaillée de la diarisation dans le journal (segmentation, empreintes vocales...) plutôt qu'une absence totale de retour jusqu'à la fin de l'étape
 - Interface graphique : le moteur de transcription tourne dans un sous-processus isolé, son plantage n'affecte jamais la fenêtre
 
 ## Limites connues

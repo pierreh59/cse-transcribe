@@ -119,6 +119,31 @@ def transcribe_audio(audio_path, out_dir, model_dir_or_name, language, initial_p
     return whisper_segments
 
 
+def _diarization_progress_hook():
+    """
+    Fabrique un callback compatible avec le parametre `hook` de pyannote.audio
+    (signature : step_name, step_artifact, file=None, total=None, completed=None),
+    qui journalise la progression de chaque etape interne (segmentation,
+    extraction des empreintes vocales, clustering...) au lieu de ne rien
+    afficher avant la toute fin, ce qui peut prendre plusieurs minutes sans
+    aucun signe de vie sur un enregistrement long.
+    """
+    state = {"step": None, "last_pct": -1}
+
+    def hook(step_name, step_artifact, file=None, total=None, completed=None):
+        if not total or completed is None:
+            return
+        if step_name != state["step"]:
+            state["step"] = step_name
+            state["last_pct"] = -1
+        pct = min(100, int(completed / total * 100))
+        if pct >= state["last_pct"] + 20 or completed >= total:
+            state["last_pct"] = pct
+            logger.info(f"Analyse des voix : {step_name} — {pct}% ({completed}/{total})")
+
+    return hook
+
+
 def diarize_audio(audio_path, out_dir, hf_token, device_pref="auto"):
     """Etape 2 : diarisation (qui parle quand). Reprend depuis un checkpoint si deja fait."""
     os.makedirs(os.path.join(out_dir, "checkpoints"), exist_ok=True)
@@ -157,7 +182,7 @@ def diarize_audio(audio_path, out_dir, hf_token, device_pref="auto"):
     # fragile. Le fournir en waveform pre-decodee evite cette dependance.
     sample_rate = 16000
     waveform = torch.from_numpy(decode_audio(audio_path, sampling_rate=sample_rate)).unsqueeze(0)
-    output = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+    output = pipeline({"waveform": waveform, "sample_rate": sample_rate}, hook=_diarization_progress_hook())
     # pyannote.audio >= 4.0 renvoie un objet DiarizeOutput ; on utilise la version
     # "exclusive" (sans chevauchement), adaptee a la fusion avec la transcription.
     diarization = getattr(output, "exclusive_speaker_diarization", None)

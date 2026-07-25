@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QGroupBox, QLineEdit, QPushButton, QComboBox, QCheckBox, QPlainTextEdit,
     QProgressBar, QFileDialog, QLabel, QMessageBox, QDialog, QScrollArea,
-    QInputDialog,
+    QInputDialog, QCompleter,
 )
 
 from . import env_manager
@@ -119,7 +119,15 @@ class BootstrapDialog(QDialog):
         self._ui_timer.timeout.connect(self._update_elapsed)
 
     def start(self, system_python_cmd: str):
-        self._steps = env_manager.bootstrap_steps(system_python_cmd)
+        self.run_steps(env_manager.bootstrap_steps(system_python_cmd))
+
+    def run_steps(self, steps):
+        """Permet de reutiliser ce dialogue pour n'importe quelle liste
+        d'etapes (description, commande) — pas seulement le bootstrap
+        principal, aussi l'installation a la demande des dependances
+        d'export (Word/PDF), plus legere mais qui merite le meme retour
+        visuel qu'un simple curseur d'attente."""
+        self._steps = steps
         self._run_next_step()
 
     def _run_next_step(self):
@@ -230,6 +238,13 @@ class SpeakerNamingDialog(QDialog):
         with open(os.path.join(out_dir, "speakers_summary.json"), encoding="utf-8") as f:
             summary = json.load(f)
 
+        # Auto-completion a partir des locuteurs deja identifies lors de
+        # sessions precedentes (reunions recurrentes avec les memes personnes).
+        known = env_manager.load_known_speakers()
+        known_noms = sorted({e.get("nom", "") for e in known if e.get("nom")})
+        known_prenoms = sorted({e.get("prenom", "") for e in known if e.get("prenom")})
+        known_fonctions = sorted({e.get("fonction", "") for e in known if e.get("fonction")})
+
         for s in summary:
             if s["speaker"] == "INCONNU":
                 continue
@@ -244,10 +259,13 @@ class SpeakerNamingDialog(QDialog):
             fields_row = QHBoxLayout()
             nom_edit = QLineEdit()
             nom_edit.setPlaceholderText("Nom")
+            nom_edit.setCompleter(self._make_completer(known_noms))
             prenom_edit = QLineEdit()
             prenom_edit.setPlaceholderText("Prénom")
+            prenom_edit.setCompleter(self._make_completer(known_prenoms))
             fonction_edit = QLineEdit()
             fonction_edit.setPlaceholderText("Fonction")
+            fonction_edit.setCompleter(self._make_completer(known_fonctions))
             fields_row.addWidget(nom_edit)
             fields_row.addWidget(prenom_edit)
             fields_row.addWidget(fonction_edit)
@@ -269,6 +287,13 @@ class SpeakerNamingDialog(QDialog):
         btn_row.addStretch()
         btn_row.addWidget(self.validate_btn)
         layout.addLayout(btn_row)
+
+    @staticmethod
+    def _make_completer(values):
+        completer = QCompleter(values)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        return completer
 
     def _on_validate(self):
         mapping = {}
@@ -294,6 +319,25 @@ class SpeakerNamingDialog(QDialog):
         if not out_path:
             return
 
+        if not env_manager.export_deps_ready():
+            # Legere (pas de CUDA a telecharger), mais merite quand meme un
+            # vrai retour visuel plutot qu'un simple curseur d'attente : on
+            # reutilise le meme dialogue que le bootstrap principal, avec
+            # une seule etape.
+            install_dialog = BootstrapDialog(self)
+            install_dialog.setWindowTitle("Installation des dépendances d'export")
+            install_dialog.run_steps([
+                ("Installation des dépendances d'export (Word/PDF)...",
+                 env_manager.export_bootstrap_step()),
+            ])
+            install_dialog.exec()
+            if install_dialog.failed():
+                QMessageBox.critical(
+                    self, "Échec de l'export",
+                    "Installation des dépendances d'export impossible."
+                )
+                return
+
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             success, message = self._export(mapping, fmt_key, out_path)
@@ -302,19 +346,13 @@ class SpeakerNamingDialog(QDialog):
 
         if success:
             self.exported_path = out_path
+            env_manager.remember_speakers(list(mapping.values()))
             QMessageBox.information(self, "Export réussi", f"Fichier généré :\n{out_path}")
             self.accept()
         else:
             QMessageBox.critical(self, "Échec de l'export", message)
 
     def _export(self, mapping: dict, fmt_key: str, out_path: str):
-        if not env_manager.export_deps_ready():
-            install = subprocess.run(
-                env_manager.export_bootstrap_step(), capture_output=True, text=True
-            )
-            if install.returncode != 0:
-                return False, "Installation des dépendances d'export impossible :\n" + install.stderr
-
         mapping_path = os.path.join(self.out_dir, "_mapping_temp.json")
         try:
             with open(mapping_path, "w", encoding="utf-8") as f:
