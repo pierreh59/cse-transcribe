@@ -40,6 +40,15 @@ Options utiles :
 - `--device auto|cuda|cpu` : matériel à utiliser (auto = essaie le GPU, bascule sur CPU si indisponible)
 - `--skip-diarization` : transcription seule, sans reconnaissance des locuteurs (pas besoin de token Hugging Face dans ce cas)
 
+## Matériel : GPU (NVIDIA) ou CPU
+
+L'outil fonctionne sans carte graphique : tout tourne aussi sur processeur (CPU), simplement plus lentement. Seules les cartes **NVIDIA** (via CUDA) accélèrent le traitement — faster-whisper et pyannote.audio reposent sur CUDA, donc une carte AMD ou Intel n'apporte aucune accélération et sera traitée comme un poste sans GPU.
+
+- `--device auto` (défaut) : essaie le GPU, bascule automatiquement sur CPU si aucune carte NVIDIA compatible n'est disponible ou si l'initialisation échoue.
+- `--device cuda` / `--device cpu` : force l'un ou l'autre.
+- À titre indicatif : sur GPU, un enregistrement de 2h peut se transcrire et se diariser en une dizaine de minutes ; sur CPU, comptez un temps largement supérieur (potentiellement proche ou au-delà de la durée réelle de l'enregistrement pour un fichier long). Le GPU est donc recommandé au-delà de quelques minutes d'audio.
+- Dans l'application graphique, le premier lancement détecte automatiquement une carte NVIDIA (via `nvidia-smi`) pour choisir d'installer les wheels torch CUDA ou CPU — aucune action manuelle requise.
+
 ## Application graphique (Windows)
 
 Une interface graphique (`cse_transcribe_gui/`, PySide6) est disponible pour un usage sans ligne de commande.
