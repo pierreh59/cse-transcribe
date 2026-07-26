@@ -8,7 +8,7 @@ Basé sur :
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (transcription, modèle Whisper Large-v3)
 - [pyannote.audio](https://github.com/pyannote/pyannote-audio) >= 4.0 (diarisation : qui parle et quand)
 
-Tout tourne en local sur votre machine — rien n'est envoyé à un service tiers, à l'exception du téléchargement initial des modèles (Hugging Face) et de l'authentification nécessaire à ce téléchargement.
+Tout tourne en local sur votre machine — rien n'est envoyé à un service tiers, à l'exception du téléchargement initial des modèles (Hugging Face) et, si vous l'utilisez, de l'option `--youtube-url` qui interroge YouTube pour récupérer l'audio d'une vidéo (voir plus bas).
 
 ## Installation (sur n'importe quel poste Windows/Mac/Linux)
 
@@ -39,6 +39,7 @@ Options utiles :
 - `--initial-prompt-file prompt.txt` : oriente la reconnaissance sur du vocabulaire/noms propres spécifiques à votre enregistrement (à fournir vous-même)
 - `--device auto|cuda|cpu` : matériel à utiliser (auto = essaie le GPU, bascule sur CPU si indisponible)
 - `--skip-diarization` : transcription seule, sans reconnaissance des locuteurs (pas besoin de token Hugging Face dans ce cas)
+- `--youtube-url URL` : alternative à `--audio` — télécharge la piste audio d'une vidéo YouTube (ou de tout autre site supporté par [yt-dlp](https://github.com/yt-dlp/yt-dlp)) puis la transcrit. ⚠️ Contrairement au reste de l'outil, cette option interroge un service tiers : assurez-vous de disposer des droits nécessaires sur le contenu (votre propre enregistrement, contenu sous licence libre...) et de respecter les conditions d'utilisation de la plateforme source.
 
 ## Matériel : GPU (NVIDIA) ou CPU
 
@@ -60,6 +61,8 @@ python -m cse_transcribe_gui
 ```
 
 Au premier lancement, l'application crée automatiquement un environnement Python dédié (`%LOCALAPPDATA%\cse-transcribe\venv`) et y installe les dépendances lourdes (torch, faster-whisper, pyannote.audio), avec une barre de progression. L'interface elle-même reste légère et lance le traitement dans un sous-processus séparé : un plantage du moteur de transcription n'affecte jamais la fenêtre.
+
+Un champ « ou URL YouTube » permet de remplacer la sélection d'un fichier local par le téléchargement de la piste audio d'une vidéo (voir l'avertissement sur les droits/CGU plus haut).
 
 Après une diarisation réussie, un écran « Qui a dit quoi ? » liste chaque locuteur détecté (`SPEAKER_00`, ...) avec quelques phrases prononcées, et propose trois champs à compléter (Nom / Prénom / Fonction) — avec auto-complétion à partir des locuteurs déjà identifiés lors de sessions précédentes, utile pour des réunions récurrentes avec les mêmes personnes. Une fois validé, le transcript est réécrit avec ces identités et exporté au format choisi (Word, PDF ou texte) — les dépendances d'export (`python-docx`, `fpdf2`), légères, s'installent automatiquement à la première utilisation, avec la même barre de progression que le bootstrap principal.
 

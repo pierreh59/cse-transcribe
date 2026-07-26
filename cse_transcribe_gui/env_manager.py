@@ -120,6 +120,7 @@ def export_bootstrap_step():
 REQUIREMENTS = [
     "faster-whisper>=1.0.0",
     "pyannote.audio>=4.0.0",
+    "yt-dlp",
 ]
 TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
 TORCH_PACKAGES = ["torch", "torchaudio"]

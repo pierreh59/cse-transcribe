@@ -1,4 +1,5 @@
 faster-whisper>=1.0.0
 pyannote.audio>=4.0.0
+yt-dlp
 torch
 torchaudio

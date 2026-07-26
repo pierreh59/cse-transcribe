@@ -404,6 +404,17 @@ class MainWindow(QMainWindow):
         audio_row.addWidget(audio_browse)
         file_form.addRow("Audio / video :", audio_row)
 
+        self.youtube_url_edit = QLineEdit(self.settings.value("last_youtube_url", ""))
+        self.youtube_url_edit.setPlaceholderText("https://www.youtube.com/watch?v=... (optionnel, remplace le fichier ci-dessus)")
+        file_form.addRow("ou URL YouTube :", self.youtube_url_edit)
+        youtube_note = QLabel(
+            "⚠️ Contrairement au reste de l'outil (100% local), cette option interroge YouTube. "
+            "Assurez-vous de disposer des droits sur le contenu et de respecter ses conditions d'utilisation."
+        )
+        youtube_note.setWordWrap(True)
+        youtube_note.setStyleSheet("color: #888; font-size: 9pt;")
+        file_form.addRow("", youtube_note)
+
         self.out_edit = QLineEdit(self.settings.value("last_out_dir", ""))
         out_browse = QPushButton("Parcourir...")
         out_browse.clicked.connect(self._browse_out_dir)
@@ -501,6 +512,7 @@ class MainWindow(QMainWindow):
     # ---------------- Lancement du traitement ----------------
     def _save_settings(self):
         self.settings.setValue("last_audio", self.audio_edit.text())
+        self.settings.setValue("last_youtube_url", self.youtube_url_edit.text())
         self.settings.setValue("last_out_dir", self.out_edit.text())
         self.settings.setValue("model", self.model_combo.currentText())
         self.settings.setValue("language", self.language_edit.text())
@@ -510,9 +522,13 @@ class MainWindow(QMainWindow):
 
     def _start_run(self):
         audio = self.audio_edit.text().strip()
+        youtube_url = self.youtube_url_edit.text().strip()
         out_dir = self.out_edit.text().strip()
-        if not audio or not os.path.isfile(audio):
-            QMessageBox.warning(self, "Fichier manquant", "Choisissez un fichier audio/video valide.")
+        if not youtube_url and (not audio or not os.path.isfile(audio)):
+            QMessageBox.warning(
+                self, "Fichier manquant",
+                "Choisissez un fichier audio/video valide, ou renseignez une URL YouTube."
+            )
             return
         if not out_dir:
             QMessageBox.warning(self, "Dossier manquant", "Choisissez un dossier de sortie.")
@@ -534,7 +550,7 @@ class MainWindow(QMainWindow):
 
         args = [
             "-m", "cse_transcribe.cli",
-            "--audio", audio,
+            "--youtube-url" if youtube_url else "--audio", youtube_url if youtube_url else audio,
             "--out-dir", out_dir,
             "--model", self.model_combo.currentText(),
             "--language", self.language_edit.text().strip() or "auto",

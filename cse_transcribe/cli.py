@@ -15,7 +15,14 @@ def build_parser():
         description="Transcription + diarisation (reconnaissance des voix) locale et robuste, "
                     "basee sur faster-whisper et pyannote.audio."
     )
-    p.add_argument("--audio", required=True, help="Chemin vers le fichier audio ou video a transcrire.")
+    p.add_argument("--audio", default=None,
+                    help="Chemin vers le fichier audio ou video a transcrire. "
+                        "Alternative a --youtube-url (l'un des deux est requis).")
+    p.add_argument("--youtube-url", default=None,
+                    help="URL YouTube (ou tout autre site supporte par yt-dlp) dont la piste audio sera "
+                        "telechargee puis transcrite. Attention : contrairement au reste de l'outil, cette "
+                        "etape interroge un service tiers ; assurez-vous de disposer des droits necessaires "
+                        "sur le contenu et de respecter les conditions d'utilisation de la plateforme source.")
     p.add_argument("--out-dir", required=True, help="Dossier de sortie (resultats, checkpoints, logs).")
     p.add_argument("--model", default="large-v3",
                     help="Nom du modele Whisper (ex: large-v3, medium) ou chemin local vers un modele "
@@ -43,8 +50,21 @@ def main(argv=None):
 
     logger, log_path = setup_logging(args.out_dir)
 
-    if not os.path.exists(args.audio):
-        logger.error(f"Fichier audio introuvable : {args.audio}")
+    if not args.audio and not args.youtube_url:
+        logger.error("Fournissez soit --audio, soit --youtube-url.")
+        sys.exit(1)
+
+    audio_path = args.audio
+    if args.youtube_url:
+        from .youtube import download_audio
+        try:
+            audio_path = download_audio(args.youtube_url, os.path.join(args.out_dir, "downloads"))
+        except Exception:
+            logger.exception("Echec du telechargement depuis l'URL fournie.")
+            sys.exit(1)
+
+    if not audio_path or not os.path.exists(audio_path):
+        logger.error(f"Fichier audio introuvable : {audio_path}")
         sys.exit(1)
 
     initial_prompt = args.initial_prompt or DEFAULT_PROMPT
@@ -59,7 +79,7 @@ def main(argv=None):
 
     if args.skip_diarization:
         from .pipeline import transcribe_audio, write_outputs
-        segments = transcribe_audio(args.audio, args.out_dir, args.model, args.language,
+        segments = transcribe_audio(audio_path, args.out_dir, args.model, args.language,
                                     initial_prompt, args.device)
         turns = [{"start": s["start"], "end": s["end"], "speaker": "N/A", "text": s["text"]} for s in segments]
         write_outputs(turns, args.out_dir)
@@ -74,7 +94,7 @@ def main(argv=None):
         sys.exit(1)
 
     try:
-        run_pipeline(args.audio, args.out_dir, args.model, args.language, initial_prompt,
+        run_pipeline(audio_path, args.out_dir, args.model, args.language, initial_prompt,
                     hf_token, args.device)
     except Exception:
         logger.error(f"Le traitement a echoue. Consultez le journal complet pour le detail : {log_path}")

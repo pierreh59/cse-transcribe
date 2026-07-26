@@ -8,7 +8,7 @@ Built on:
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (transcription, Whisper Large-v3 model)
 - [pyannote.audio](https://github.com/pyannote/pyannote-audio) >= 4.0 (diarization: who spoke when)
 
-Everything runs locally on your machine — nothing is sent to a third-party service, except the initial download of the models (Hugging Face) and the authentication required for that download.
+Everything runs locally on your machine — nothing is sent to a third-party service, except the initial download of the models (Hugging Face) and, if you use it, the `--youtube-url` option which queries YouTube to fetch a video's audio (see below).
 
 ## Installation (any Windows/Mac/Linux machine)
 
@@ -39,6 +39,7 @@ Useful options:
 - `--initial-prompt-file prompt.txt`: steers recognition toward vocabulary/proper nouns specific to your recording (you provide it yourself)
 - `--device auto|cuda|cpu`: hardware to use (auto = tries the GPU, falls back to CPU if unavailable)
 - `--skip-diarization`: transcription only, no speaker recognition (no Hugging Face token needed in that case)
+- `--youtube-url URL`: alternative to `--audio` — downloads the audio track of a YouTube video (or any other site supported by [yt-dlp](https://github.com/yt-dlp/yt-dlp)) then transcribes it. ⚠️ Unlike the rest of the tool, this option queries a third-party service: make sure you have the necessary rights to the content (your own recording, freely licensed content...) and comply with the source platform's terms of use.
 
 ## Hardware: GPU (NVIDIA) or CPU
 
@@ -60,6 +61,8 @@ python -m cse_transcribe_gui
 ```
 
 On first launch, the application automatically creates a dedicated Python environment (`%LOCALAPPDATA%\cse-transcribe\venv`) and installs the heavy dependencies there (torch, faster-whisper, pyannote.audio), with a progress bar. The interface itself stays lightweight and runs the processing in a separate subprocess: a crash in the transcription engine never affects the window.
+
+An "or YouTube URL" field lets you replace picking a local file with downloading a video's audio track instead (see the rights/terms-of-use warning above).
 
 After a successful diarization, a "Who said what?" screen lists each detected speaker (`SPEAKER_00`, ...) with a few spoken phrases, and offers three fields to fill in (Last name / First name / Role) — with autocomplete from speakers already identified in previous sessions, handy for recurring meetings with the same people. Once validated, the transcript is rewritten with these identities and exported in the chosen format (Word, PDF, or text) — the lightweight export dependencies (`python-docx`, `fpdf2`) install automatically on first use, with the same progress bar as the main bootstrap.
 
