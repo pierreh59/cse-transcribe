@@ -117,10 +117,32 @@ def export_bootstrap_step():
             "--disable-pip-version-check"] + EXPORT_REQUIREMENTS
 
 
+YOUTUBE_REQUIREMENTS = ["yt-dlp"]
+
+
+def youtube_deps_ready() -> bool:
+    """yt-dlp est-il deja installe ? Meme logique que pour les dependances d'export :
+    is_ready() ne verifie que torch/faster-whisper/pyannote, donc une installation
+    existante (creee avant l'ajout de cette fonctionnalite) ne l'aurait pas."""
+    py = venv_python()
+    if not py.exists():
+        return False
+    check = subprocess.run(
+        [str(py), "-c", "import yt_dlp"],
+        capture_output=True, text=True,
+    )
+    return check.returncode == 0
+
+
+def youtube_bootstrap_step():
+    py = str(venv_python())
+    return [py, "-m", "pip", "install", "--progress-bar", "raw",
+            "--disable-pip-version-check"] + YOUTUBE_REQUIREMENTS
+
+
 REQUIREMENTS = [
     "faster-whisper>=1.0.0",
     "pyannote.audio>=4.0.0",
-    "yt-dlp",
 ]
 TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
 TORCH_PACKAGES = ["torch", "torchaudio"]

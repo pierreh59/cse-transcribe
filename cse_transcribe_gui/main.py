@@ -541,6 +541,24 @@ class MainWindow(QMainWindow):
             )
             return
 
+        if youtube_url and not env_manager.youtube_deps_ready():
+            # yt-dlp est installe a la demande (comme les dependances d'export) :
+            # un venv existant, cree avant l'ajout de cette fonctionnalite, ne
+            # l'aurait pas ; is_ready() ne verifie que torch/faster-whisper/pyannote.
+            install_dialog = BootstrapDialog(self)
+            install_dialog.setWindowTitle("Installation du support YouTube")
+            install_dialog.run_steps([
+                ("Installation de yt-dlp (support des URL YouTube)...",
+                 env_manager.youtube_bootstrap_step()),
+            ])
+            install_dialog.exec()
+            if install_dialog.failed():
+                QMessageBox.critical(
+                    self, "Échec de l'installation",
+                    "Installation de yt-dlp impossible : le téléchargement depuis une URL ne peut pas se faire."
+                )
+                return
+
         self._save_settings()
         self.last_out_dir = out_dir
         self.total_duration_sec = None
