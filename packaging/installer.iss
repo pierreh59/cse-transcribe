@@ -6,7 +6,7 @@
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss
 
 #define MyAppName "cse-transcribe"
-#define MyAppVersion "0.1.4"
+#define MyAppVersion "0.1.5"
 #define MyAppPublisher "pierreh59"
 #define MyAppURL "https://github.com/pierreh59/cse-transcribe"
 #define MyAppExeName "cse-transcribe.exe"

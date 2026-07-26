@@ -54,6 +54,22 @@ def _ensure_cuda_dll_path():
         if os.path.isdir(torch_lib):
             os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
             os.add_dll_directory(torch_lib)
+            # Precaution supplementaire : le PATH peut suffire dans la grande
+            # majorite des cas, mais reste une recherche par nom effectuee au
+            # moment ou ctranslate2 en a besoin, donc sensible a l'etat du
+            # processus a cet instant precis (autres bibliotheques chargees
+            # entre-temps, etc.). Charger cublas directement par son chemin
+            # absolu, une fois pour toutes ici, elimine cette dependance au
+            # PATH : Windows reconnait alors la DLL comme deja chargee quel
+            # que soit l'etat de recherche au moment ou ctranslate2 la demande.
+            import ctypes
+            for dll_name in ("cublas64_12.dll", "cublasLt64_12.dll"):
+                dll_path = os.path.join(torch_lib, dll_name)
+                if os.path.isfile(dll_path):
+                    try:
+                        ctypes.WinDLL(dll_path)
+                    except OSError:
+                        pass
     except Exception:
         logger.warning("Impossible de localiser les bibliotheques CUDA de torch pour le GPU.")
 
