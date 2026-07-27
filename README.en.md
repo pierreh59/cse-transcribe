@@ -16,14 +16,24 @@ Everything runs locally on your machine — nothing is sent to a third-party ser
 2. `pip install -r requirements.txt`
    - For GPU acceleration (recommended, much faster): install `torch`/`torchaudio` with the right CUDA index for your card, for example:
      `pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124`
-3. A free [Hugging Face](https://huggingface.co/join) account, then accept the terms on these three pages (required by pyannote.audio >= 4.0):
+3. A free Hugging Face token, needed only for speaker recognition (diarization) — see below.
+
+No external FFmpeg installation is required: audio decoding goes through PyAV (already bundled with its own libraries), both for transcription and diarization.
+
+### Getting a Hugging Face token
+
+Only needed if you want speaker recognition (diarization); not needed for transcription-only use (`--skip-diarization` or the "Transcription only" checkbox in the app).
+
+1. Create a free account at [huggingface.co/join](https://huggingface.co/join) (or sign in if you already have one).
+2. Accept the terms of use on these three model pages (required by pyannote.audio >= 4.0) — open each link, sign in if needed, and click **"Agree and access repository"**:
    - [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
    - [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
    - [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
-   - Create a read token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-   - Set the `HF_TOKEN` environment variable (or pass it via `--hf-token`)
-
-No external FFmpeg installation is required: audio decoding goes through PyAV (already bundled with its own libraries), both for transcription and diarization.
+3. Create a token: go to [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), click **"Create new token"**, choose type **"Read"** (sufficient, no need for a "Write" token), give it a name (e.g. `cse-transcribe`), then **"Create token"**.
+4. Copy the displayed token (it starts with `hf_...`) — it's shown only once, copy it right away.
+5. Use the token, depending on how you run the tool:
+   - **Graphical application**: paste it into the "Token Hugging Face" field (it's remembered for next time).
+   - **Command line**: set the `HF_TOKEN` environment variable, or pass it directly via `--hf-token YOUR_TOKEN`.
 
 ## Usage
 

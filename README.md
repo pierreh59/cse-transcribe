@@ -16,14 +16,24 @@ Tout tourne en local sur votre machine — rien n'est envoyé à un service tier
 2. `pip install -r requirements.txt`
    - Pour l'accélération GPU (recommandé, bien plus rapide) : installez `torch`/`torchaudio` avec le bon index CUDA pour votre carte, par exemple :
      `pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124`
-3. Un compte [Hugging Face](https://huggingface.co/join) (gratuit), puis accepter les conditions sur ces trois pages (requis par pyannote.audio >= 4.0) :
+3. Un token Hugging Face (gratuit), nécessaire uniquement pour la reconnaissance des locuteurs (diarisation) — voir ci-dessous.
+
+Aucune installation externe de FFmpeg n'est necessaire : le decodage audio passe par PyAV (deja embarque avec ses propres bibliotheques), aussi bien pour la transcription que pour la diarisation.
+
+### Obtenir un token Hugging Face
+
+Nécessaire uniquement si vous voulez la reconnaissance des locuteurs (diarisation) ; pas besoin si vous n'utilisez que la transcription seule (`--skip-diarization` ou case « Transcription seule » dans l'application).
+
+1. Créer un compte gratuit sur [huggingface.co/join](https://huggingface.co/join) (ou se connecter si vous en avez déjà un).
+2. Accepter les conditions d'utilisation sur ces trois pages de modèles (requis par pyannote.audio >= 4.0) — ouvrir chaque lien, se connecter si besoin, et cliquer sur **« Agree and access repository »** :
    - [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
    - [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
    - [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
-   - Créer un token de lecture sur [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-   - Définir la variable d'environnement `HF_TOKEN` (ou la passer via `--hf-token`)
-
-Aucune installation externe de FFmpeg n'est necessaire : le decodage audio passe par PyAV (deja embarque avec ses propres bibliotheques), aussi bien pour la transcription que pour la diarisation.
+3. Créer un token : aller sur [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), cliquer sur **« Create new token »**, choisir le type **« Read »** (suffisant, pas besoin d'un token « Write »), lui donner un nom (ex. `cse-transcribe`), puis **« Create token »**.
+4. Copier le token affiché (il commence par `hf_...`) — il n'est affiché qu'une seule fois, à copier tout de suite.
+5. Utiliser ce token, selon votre façon d'utiliser l'outil :
+   - **Application graphique** : le coller dans le champ « Token Hugging Face » (il est mémorisé pour les prochaines fois).
+   - **Ligne de commande** : définir la variable d'environnement `HF_TOKEN`, ou le passer directement via `--hf-token VOTRE_TOKEN`.
 
 ## Utilisation
 
